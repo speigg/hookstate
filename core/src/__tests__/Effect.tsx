@@ -1,7 +1,8 @@
 import { hookstate, useHookstate } from '../';
 
+import { render } from '@testing-library/react';
 import { renderHook, act } from '@testing-library/react-hooks';
-import { useEffect } from 'react';
+import { useEffect, createElement } from 'react';
 
 test('primitive: should rerender stable', async () => {
     let renderTimes = 0
@@ -424,12 +425,12 @@ test('object: should rerender stable (scoped, parent rerender)', async () => {
         expect(result.current[2].b.get()).toStrictEqual(0);
         expect(result.current[3].a.get()).toStrictEqual(1);
         expect(result.current[3].b.get()).toStrictEqual(1);
-
+    
         expect(result.current[0].a.get()).toStrictEqual(0);
         expect(result.current[0].b.get()).toStrictEqual(0);
         expect(result.current[1].a.get()).toStrictEqual(1);
         expect(result.current[1].b.get()).toStrictEqual(1);
-
+    
         let state0 = result.current[0];
         let state1 = result.current[1];
         let state0a = result.current[0].a; 
@@ -850,6 +851,77 @@ test('object: should give stable reference for global state (set twice)', async 
     expect(stateHelloWorld2 == state.hello[1]).toBeTruthy();
     expect(stateHelloWorldValue2 == stateHelloWorld2.value).toBeTruthy();
     expect(stateHelloWorldValue2 == state.hello[1].value).toBeTruthy();
+});
+
+test('object: should only run effect once with parent state used in dependencies', async () => {
+    let parentRenderCount = 0;
+    let childRenderCount = 0;
+    let effectCount = 0;
+
+    const ChildWithState = ({ state }: { state: any }) => {
+        childRenderCount++;
+        const state2 = useHookstate({});
+        
+        useEffect(() => {
+            effectCount++;
+            state.set({}); 
+        }, [state2]);
+        
+        return null;
+    };
+
+    const ParentWithState = () => {
+        parentRenderCount++;
+        const state = useHookstate({});
+        return createElement(ChildWithState, { state });
+    };
+
+    const { unmount, rerender } = render(createElement(ParentWithState));
+    
+    act(() => {
+        rerender(createElement(ParentWithState));
+    });
+
+    // Implementation should prevent excessive re-renders
+    expect(parentRenderCount).toBe(2);
+    expect(childRenderCount).toBe(2);
+    expect(effectCount).toBe(1);
+    unmount();
+
+    // Test with different state value to ensure consistent behavior
+    parentRenderCount = 0;
+    childRenderCount = 0;
+    effectCount = 0;
+
+    const ChildWithValue = ({ state }: { state: any }) => {
+        childRenderCount++;
+        const state2 = useHookstate({});
+        
+        useEffect(() => {
+            effectCount++;
+            state.set({}); 
+        }, [state2.value]); 
+        
+        return null;
+    };
+
+    const ParentWithValue = () => {
+        parentRenderCount++;
+        const state = useHookstate({});
+        return createElement(ChildWithValue, { state });
+    };
+
+    const { unmount: unmount2, rerender: rerender2 } = render(createElement(ParentWithValue));
+
+    act(() => {
+        rerender2(createElement(ParentWithValue));
+    });
+
+    // Should maintain consistent behavior with state dependencies
+    expect(parentRenderCount).toBe(2);
+    expect(childRenderCount).toBe(2);
+    expect(effectCount).toBe(1);
+    unmount2();
 });
 
 test('object: should rerender if 1 state used in 2 useEffect', async () => {

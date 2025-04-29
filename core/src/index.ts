@@ -707,7 +707,7 @@ export function useHookstate<S, E extends {} = {}>(
                 oldState.onUnmount();
                 value = initializer();
                 oldStore.unsubscribe(oldState);
-                oldStore._cleanupOrphanedSubscribers();
+                oldStore.cleanupOrphanedSubscribers();
             }
 
             // hide props from development tools
@@ -809,7 +809,7 @@ export function useHookstate<S, E extends {} = {}>(
             return () => {
                 value.state.onUnmount()
                 value.store.unsubscribe(value.state);
-                value.store._cleanupOrphanedSubscribers();
+                value.store.cleanupOrphanedSubscribers();
                 value.store.deactivate()
             }
         }, []);
@@ -1219,7 +1219,7 @@ class Store implements Subscribable {
         this._subscribers.delete(l);
     }
 
-    _cleanupOrphanedSubscribers() {
+    cleanupOrphanedSubscribers() {
         if (this._subscribers.size <= 1) {
             return; // Early return if there's nothing to clean up
         }
